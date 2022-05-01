@@ -2,7 +2,36 @@ pipeline {
     agent any
     environment {
         //be sure to replace "willbla" with your own Docker Hub username
-        DOCKER_IMAGE_NAME = "willbla/train-schedule"
+        DOCKER_IMAGE_NAME = "cheunglu/train-schedule"
+    }
+    podTemplate(containers: [
+        containerTemplate(name: 'maven', image: 'maven:3.8.1-jdk-8', command: 'sleep', args: '99d'),
+        containerTemplate(name: 'golang', image: 'golang:1.16.5', command: 'sleep', args: '99d')
+    ]) {
+        node(POD_LABEL) {
+            stage('Get a Maven project') {
+                git 'https://github.com/jenkinsci/kubernetes-plugin.git'
+                container('maven') {
+                    stage('Build a Maven project') {
+                        sh 'mvn -B -ntp clean install'
+                    }
+                }
+            }
+
+            stage('Get a Golang project') {
+                git url: 'https://github.com/hashicorp/terraform.git', branch: 'main'
+                container('golang') {
+                    stage('Build a Go project') {
+                        sh '''
+                        mkdir -p /go/src/github.com/hashicorp
+                        ln -s `pwd` /go/src/github.com/hashicorp/terraform
+                        cd /go/src/github.com/hashicorp/terraform && make
+                        '''
+                    }
+                }
+            }
+
+        }
     }
     stages {
         stage('Build') {
